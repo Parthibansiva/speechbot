@@ -58,8 +58,7 @@ def transcribe_with_groq(stt_model, audio_filepath, GROQ_API_KEY):
     audio_file=open(audio_filepath, "rb")
     transcription=client.audio.transcriptions.create(
         model=stt_model,
-        file=audio_file,
-        language="ta"
+        file=audio_file
     )
 
     return transcription.text

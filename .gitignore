@@ -1,0 +1,14 @@
+venv/
+.env
+__pycache__/
+*.pyc
+*.mp3
+*.log
+response_*.json
+output*.json
+temp_*
+.DS_Store
+mobile/node_modules/
+mobile/.expo/
+mobile/.env
+rash.jpeg
