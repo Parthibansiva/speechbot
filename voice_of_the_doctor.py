@@ -19,113 +19,98 @@ else:
     print("✗ ElevenLabs API Key NOT found in voice_of_the_doctor.py - will use Google TTS fallback")
 
 
-def translate_to_tamil(english_text):
+def translate_text(text, target_lang):
     """
-    Translate English text to Tamil using Google Translate (via deep-translator)
+    Translate text to target language using Google Translate (via deep-translator)
     """
     try:
-        tamil_text = translator.translate(english_text)
-        print(f"📝 Translated to Tamil: {tamil_text[:100]}...")
-        return tamil_text
+        # Map full language names to codes if necessary, or assume codes are passed
+        # For simplicity, let's assume we might get full names or codes, but deep-translator expects codes.
+        # A simple mapping for Indian languages:
+        lang_map = {
+            'english': 'en', 'tamil': 'ta', 'hindi': 'hi', 'telugu': 'te', 
+            'kannada': 'kn', 'malayalam': 'ml', 'bengali': 'bn', 'gujarati': 'gu',
+            'marathi': 'mr', 'punjabi': 'pa'
+        }
+        
+        lang_code = lang_map.get(target_lang.lower(), target_lang.lower())
+        
+        if lang_code == 'en':
+            return text
+
+        translator = GoogleTranslator(source='auto', target=lang_code)
+        translated_text = translator.translate(text)
+        print(f"📝 Translated to {target_lang} ({lang_code}): {translated_text[:100]}...")
+        return translated_text
     except Exception as e:
         print(f"✗ Translation Error: {e}")
-        print("⚠ Using original English text as fallback")
-        return english_text
+        print("⚠ Using original text as fallback")
+        return text
 
 
-def text_to_speech_with_gtts_tamil(tamil_text, output_filepath):
-    """
-    Helper function to speak already-translated Tamil text
-    """
-    try:
-        audioobj = gTTS(
-            text=tamil_text,
-            lang='ta',
-            slow=False
-        )
-        audioobj.save(output_filepath)
-        print(f"✓ gTTS: Tamil audio saved to {output_filepath}")
-        return output_filepath
-    except Exception as e:
-        print(f"✗ gTTS Error: {e}")
-        return None
-
-
-def text_to_speech_with_gtts(input_text, output_filepath, translate=True):
+def text_to_speech_with_gtts(input_text, output_filepath, language='en'):
     """
     Convert text to speech using Google TTS
-    If translate=True, translates English to Tamil first
     """
-    print(f"🔊 gTTS called with translate={translate}")
+    print(f"🔊 gTTS called for language={language}")
     
-    # Translate to Tamil if requested
-    if translate:
-        print(f"📥 Original text: {input_text[:100]}...")
-        text_to_speak = translate_to_tamil(input_text)
-        language = 'ta'
-    else:
-        text_to_speak = input_text
-        language = 'en'
+    # Map common names to gTTS codes
+    lang_map = {
+        'english': 'en', 'tamil': 'ta', 'hindi': 'hi', 'telugu': 'te', 
+        'kannada': 'kn', 'malayalam': 'ml', 'bengali': 'bn', 'gujarati': 'gu',
+        'marathi': 'mr', 'punjabi': 'pa'
+    }
+    lang_code = lang_map.get(language.lower(), 'en')
     
     try:
         audioobj = gTTS(
-            text=text_to_speak,
-            lang=language,
+            text=input_text,
+            lang=lang_code,
             slow=False
         )
         audioobj.save(output_filepath)
-        print(f"✓ gTTS: Audio saved to {output_filepath} (language: {language})")
+        print(f"✓ gTTS: Audio saved to {output_filepath} (language: {lang_code})")
         return output_filepath
     except Exception as e:
         print(f"✗ gTTS Error: {e}")
         return None
 
 
-def text_to_speech_with_elevenlabs(input_text, output_filepath, translate=True):
+def text_to_speech_with_elevenlabs(input_text, output_filepath, language='en'):
     """
-    Convert text to speech using ElevenLabs API with fallback to Google TTS
-    If translate=True, translates English to Tamil first
+    Convert text to speech using ElevenLabs API with fallback to Google TTS.
+    Uses eleven_multilingual_v2 for non-English support.
     """
-    print(f"🔊 ElevenLabs called with translate={translate}")
-    
-    # Translate to Tamil if requested
-    if translate:
-        print(f"📥 Original text: {input_text[:100]}...")
-        text_to_speak = translate_to_tamil(input_text)
-    else:
-        text_to_speak = input_text
+    print(f"🔊 ElevenLabs called for language={language}")
     
     # Check if API key is available
     if not ELEVENLABS_API_KEY:
         print("⚠ ELEVENLABS_API_KEY not found. Using Google TTS instead...")
-        return text_to_speech_with_gtts(text_to_speak, output_filepath, translate=False)
+        return text_to_speech_with_gtts(input_text, output_filepath, language=language)
     
     try:
         print(f"Attempting ElevenLabs TTS with API key: {ELEVENLABS_API_KEY[:10]}...")
         
         client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
         
+        # Use multilingual model
+        model_id = "eleven_multilingual_v2"
+        
         audio = client.generate(
-            text=text_to_speak,
+            text=input_text,
             voice="Aria",
             output_format="mp3_22050_32",
-            model="eleven_turbo_v2"
+            model=model_id
         )
         
         elevenlabs.save(audio, output_filepath)
         print(f"✓ ElevenLabs: Audio saved to {output_filepath}")
         return output_filepath
         
-    except elevenlabs.core.api_error.ApiError as e:
-        print(f"✗ ElevenLabs API Error: {e}")
-        print("⚠ Falling back to Google TTS with translated text...")
-        # text_to_speak is already translated, so use translate=False and set language='ta'
-        return text_to_speech_with_gtts_tamil(text_to_speak, output_filepath)
-        
     except Exception as e:
         print(f"✗ ElevenLabs Error: {e}")
-        print("⚠ Falling back to Google TTS with translated text...")
-        return text_to_speech_with_gtts_tamil(text_to_speak, output_filepath)
+        print("⚠ Falling back to Google TTS...")
+        return text_to_speech_with_gtts(input_text, output_filepath, language=language)
 
 
 def play_audio(output_filepath):
