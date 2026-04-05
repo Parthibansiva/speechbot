@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 // For Android Emulator, use 'http://10.0.2.2:8000'
 // For iOS Simulator, use 'http://localhost:8000'
 // const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
-const BASE_URL = 'http://10.76.78.249:8000'; // Using local IP for broader compatibility
+const BASE_URL = 'http://10.134.249.249:8000'; // Using local IP for broader compatibility
 
 export const sendChat = async (text, audioUri, imageUri, history = [], language = 'English') => {
     const formData = new FormData();
@@ -57,9 +57,6 @@ export const sendChat = async (text, audioUri, imageUri, history = [], language 
         const response = await fetch(`${BASE_URL}/chat`, {
             method: 'POST',
             body: formData,
-            headers: {
-                // 'Content-Type': 'multipart/form-data', // Let the browser set this with the boundary
-            },
         });
 
         if (!response.ok) {
@@ -70,6 +67,41 @@ export const sendChat = async (text, audioUri, imageUri, history = [], language 
         return await response.json();
     } catch (error) {
         console.error('API Request Failed:', error);
+        throw error;
+    }
+};
+
+export const sendRespiration = async (audioUri) => {
+    const formData = new FormData();
+    const uriParts = audioUri.split('.');
+    const fileType = uriParts[uriParts.length - 1];
+
+    if (Platform.OS === 'web') {
+        const response = await fetch(audioUri);
+        const blob = await response.blob();
+        formData.append('audio', blob, `respiration.${fileType}`);
+    } else {
+        formData.append('audio', {
+            uri: audioUri,
+            name: `respiration.${fileType}`,
+            type: `audio/${fileType}`,
+        });
+    }
+
+    try {
+        const response = await fetch(`${BASE_URL}/predict_respiratory`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Respiration API Error: ${response.status} - ${errorText}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Respiration API Request Failed:', error);
         throw error;
     }
 };
