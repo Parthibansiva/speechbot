@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Text, Image } from 'react-native';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { View, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Text, Image, Alert } from 'react-native';
+import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -8,6 +8,7 @@ const InputArea = ({ onSend, isLoading }) => {
     const [text, setText] = useState('');
     const [recording, setRecording] = useState(null);
     const [isRecording, setIsRecording] = useState(false);
+    const [isRespirationRecording, setIsRespirationRecording] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
 
     useEffect(() => {
@@ -42,6 +43,33 @@ const InputArea = ({ onSend, isLoading }) => {
         const uri = recording.getURI();
         setRecording(null);
         onSend({ audioUri: uri });
+    };
+
+    const startRespirationRecording = async () => {
+        try {
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+            });
+
+            const { recording } = await Audio.Recording.createAsync(
+                Audio.RecordingOptionsPresets.HIGH_QUALITY
+            );
+            
+            setIsRespirationRecording(true);
+            
+            // Record for exactly 6 seconds as required by the model
+            setTimeout(async () => {
+                await recording.stopAndUnloadAsync();
+                const uri = recording.getURI();
+                setIsRespirationRecording(false);
+                onSend({ audioUri: uri, type: 'respiration' });
+            }, 6000);
+
+        } catch (err) {
+            console.error('Failed to start respiration recording', err);
+            setIsRespirationRecording(false);
+        }
     };
 
     const pickImage = async () => {
@@ -91,6 +119,13 @@ const InputArea = ({ onSend, isLoading }) => {
                 </View>
             )}
 
+            {isRespirationRecording && (
+                <View style={styles.respirationOverlay}>
+                    <ActivityIndicator color="#4a90e2" />
+                    <Text style={styles.respirationText}>Recording Respiration (6s)... Keep breathing naturally.</Text>
+                </View>
+            )}
+
             <View style={styles.inputContainer}>
                 <TouchableOpacity onPress={pickImage} style={styles.iconButton}>
                     <Ionicons name="image-outline" size={24} color="#4a90e2" />
@@ -100,16 +135,29 @@ const InputArea = ({ onSend, isLoading }) => {
                     <Ionicons name="camera-outline" size={24} color="#4a90e2" />
                 </TouchableOpacity>
 
+                <TouchableOpacity 
+                    onPress={startRespirationRecording} 
+                    style={styles.iconButton}
+                    disabled={isRespirationRecording || isRecording || isLoading}
+                >
+                    <MaterialCommunityIcons 
+                        name="lungs" 
+                        size={24} 
+                        color={isRespirationRecording ? "#e74c3c" : "#4a90e2"} 
+                    />
+                </TouchableOpacity>
+
                 <TextInput
                     style={styles.input}
                     placeholder="Message..."
                     value={text}
                     onChangeText={setText}
                     multiline
+                    editable={!isRespirationRecording}
                 />
 
                 {text.trim() || selectedImage ? (
-                    <TouchableOpacity onPress={handleSend} style={styles.sendButton} disabled={isLoading}>
+                    <TouchableOpacity onPress={handleSend} style={styles.sendButton} disabled={isLoading || isRespirationRecording}>
                         {isLoading ? (
                             <ActivityIndicator color="white" size="small" />
                         ) : (
@@ -120,6 +168,7 @@ const InputArea = ({ onSend, isLoading }) => {
                     <TouchableOpacity
                         onPress={isRecording ? stopRecording : startRecording}
                         style={[styles.micButton, isRecording && styles.recordingButton]}
+                        disabled={isRespirationRecording || isLoading}
                     >
                         <MaterialIcons name={isRecording ? "stop" : "mic"} size={24} color="white" />
                     </TouchableOpacity>
@@ -152,6 +201,20 @@ const styles = StyleSheet.create({
         right: -5,
         backgroundColor: 'rgba(0,0,0,0.5)',
         borderRadius: 12,
+    },
+    respirationOverlay: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 10,
+        backgroundColor: '#f0f2f5',
+        borderRadius: 10,
+        marginBottom: 10,
+    },
+    respirationText: {
+        marginLeft: 10,
+        color: '#4a90e2',
+        fontSize: 12,
+        fontWeight: 'bold',
     },
     inputContainer: {
         flexDirection: 'row',

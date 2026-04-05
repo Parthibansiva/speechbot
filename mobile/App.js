@@ -4,7 +4,7 @@ import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import ChatInterface from './components/ChatInterface';
 import InputArea from './components/InputArea';
-import { sendChat } from './services/api';
+import { sendChat, sendRespiration } from './services/api';
 
 const LANGUAGES = [
   { id: 'en', name: 'English' },
@@ -31,11 +31,11 @@ export default function App() {
   const [language, setLanguage] = useState('English');
   const [modalVisible, setModalVisible] = useState(false);
 
-  const handleSend = async ({ text, audioUri, imageUri }) => {
+  const handleSend = async ({ text, audioUri, imageUri, type }) => {
     // Add user message immediately
     const userMessage = {
       id: Date.now().toString(),
-      text: text || (audioUri ? '🎤 Audio Message' : '📷 Image Message'),
+      text: text || (type === 'respiration' ? '🫁 Respiration Recording (6s)' : audioUri ? '🎤 Audio Message' : '📷 Image Message'),
       sender: 'user',
       imageUri: imageUri,
     };
@@ -44,27 +44,42 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      // Prepare history for backend (exclude current message, filter for role/content)
-      const history = messages
-        .filter(msg => msg.id !== 'welcome') // Exclude welcome message if it's not a real turn
-        .map(msg => ({
-          role: msg.sender === 'user' ? 'user' : 'assistant',
-          content: msg.text
-        }));
+      let botResponse;
+      
+      if (type === 'respiration') {
+        const result = await sendRespiration(audioUri);
+        const top3 = Object.entries(result.all_predictions)
+          .sort(([,a], [,b]) => b - a)
+          .slice(0, 3)
+          .map(([label, prob]) => `${label}: ${(prob * 100).toFixed(1)}%`)
+          .join('\n');
 
-      const response = await sendChat(text, audioUri, imageUri, history, language);
+        botResponse = {
+          response: `**Respiratory Analysis Results:**\n\nPrimary Diagnosis: **${result.prediction}**\nConfidence: **${(result.confidence * 100).toFixed(2)}%**\n\n**Top Probabilities:**\n${top3}\n\nI have added this to our conversation. How are you feeling overall?`
+        };
+      } else {
+        // Prepare history for backend
+        const history = messages
+          .filter(msg => msg.id !== 'welcome')
+          .map(msg => ({
+            role: msg.sender === 'user' ? 'user' : 'assistant',
+            content: msg.text
+          }));
+
+        botResponse = await sendChat(text, audioUri, imageUri, history, language);
+      }
 
       // Add bot response
       const botMessage = {
         id: (Date.now() + 1).toString(),
-        text: response.response,
+        text: botResponse.response,
         sender: 'bot',
       };
       setMessages(prev => [...prev, botMessage]);
 
       // Play audio if available
-      if (response.audio_base64) {
-        playAudio(response.audio_base64);
+      if (botResponse.audio_base64) {
+        playAudio(botResponse.audio_base64);
       }
 
     } catch (error) {
